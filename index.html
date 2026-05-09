@@ -24,8 +24,7 @@
     font-weight: 900;
     letter-spacing: 0.06em;
     text-align: center;
-    background: linear-gradient(90deg, #E84040 0%, #ffffff 45%, #3B82F6 100%);
-    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    color: #E8EFFF;
   }
   .subtitle {
     font-size: 0.9rem;
@@ -102,7 +101,7 @@
 <body>
 
 <h1>Alliance Selection Tool</h1>
-<p class="subtitle">2026 FRC Minnesota State Championship</p>
+<p class="subtitle">2026 FRC &nbsp;·&nbsp; Minnesota State Championship</p>
 
 <div class="wheel-wrap">
   <div class="pointer"></div>
@@ -126,7 +125,7 @@ const TEAMS = [
 // ─── WEIGHT CONFIG (hidden from UI) ───────────────────────────────────────────
 // Each team gets 1 ticket by default. Increase a team's value for more chances.
 const WEIGHTS = {
-  4728: 14   // Team 4728 is 12x more likely than any other team
+  4728: 12   // Team 4728 is 12x more likely than any other team
 };
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -145,7 +144,7 @@ const REDS  = ['#7B0D14','#9B1520','#C1121F','#D92B30','#A01820'];
 const BLUES = ['#0D2B7A','#1A3D9E','#1A56DB','#2563EB','#0F2266'];
 
 function segColor(i) {
-  if (TEAMS[i] === 4728) return '#F5A623';
+
   return i % 2 === 0 ? REDS[i % REDS.length] : BLUES[i % BLUES.length];
 }
 
@@ -181,7 +180,7 @@ function drawWheel(a) {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.font = "700 8px 'Orbitron', monospace";
-
+    ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.fillText(team, 0, 0);
     ctx.restore();
   });
