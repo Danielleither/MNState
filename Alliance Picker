@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alliance Selection Tool — 2026 FRC MN State Championship</title>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Rajdhani:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: #06091A;
+    color: #E8EFFF;
+    font-family: 'Rajdhani', sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 2.5rem 1rem 2rem;
+  }
+
+  h1 {
+    font-family: 'Orbitron', monospace;
+    font-size: clamp(1.3rem, 3.5vw, 2rem);
+    font-weight: 900;
+    letter-spacing: 0.06em;
+    text-align: center;
+    background: linear-gradient(90deg, #E84040 0%, #ffffff 45%, #3B82F6 100%);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  }
+  .subtitle {
+    font-size: 0.9rem;
+    color: #5A6E8A;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 0.35rem;
+    margin-bottom: 2rem;
+  }
+
+  .wheel-wrap {
+    position: relative;
+    width: min(460px, 90vw);
+    height: min(460px, 90vw);
+    margin-bottom: 1.75rem;
+  }
+  .pointer {
+    position: absolute;
+    top: -14px; left: 50%; transform: translateX(-50%);
+    width: 0; height: 0;
+    border-left: 12px solid transparent;
+    border-right: 12px solid transparent;
+    border-top: 30px solid #F5A623;
+    z-index: 10;
+    filter: drop-shadow(0 0 6px rgba(245,166,35,0.7));
+  }
+  canvas { display: block; border-radius: 50%; }
+
+  .spin-btn {
+    font-family: 'Orbitron', monospace;
+    font-size: 1rem;
+    font-weight: 700;
+    letter-spacing: 0.15em;
+    padding: 0.85rem 4rem;
+    background: #C1121F;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    text-transform: uppercase;
+    transition: background 0.2s, transform 0.1s;
+    margin-bottom: 1.5rem;
+  }
+  .spin-btn:hover:not(:disabled) { background: #E82030; }
+  .spin-btn:active:not(:disabled) { transform: scale(0.97); }
+  .spin-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .result {
+    font-family: 'Orbitron', monospace;
+    font-size: 2.4rem;
+    font-weight: 900;
+    color: #F5A623;
+    letter-spacing: 0.05em;
+    min-height: 3rem;
+    text-align: center;
+  }
+  .result.pop { animation: pop 0.35s ease; }
+  @keyframes pop {
+    0% { transform: scale(1); }
+    40% { transform: scale(1.15); }
+    100% { transform: scale(1); }
+  }
+  .result-sub {
+    font-size: 0.8rem;
+    color: #3D5070;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    text-align: center;
+    margin-top: 0.3rem;
+  }
+</style>
+</head>
+<body>
+
+<h1>Alliance Selection Tool</h1>
+<p class="subtitle">2026 FRC &nbsp;·&nbsp; Minnesota State Championship</p>
+
+<div class="wheel-wrap">
+  <div class="pointer"></div>
+  <canvas id="wheel"></canvas>
+</div>
+
+<button class="spin-btn" id="spinBtn" onclick="spin()">SPIN</button>
+
+<div class="result" id="result">—</div>
+<div class="result-sub" id="resultSub">Awaiting spin</div>
+
+<script>
+// ─── TEAMS ────────────────────────────────────────────────────────────────────
+const TEAMS = [
+  4674,11283,2530,7797,2503,2883,5653,2169,3100,4728,
+  6045,2052,3297,4174,3130,4607,7028,2846,2220,2847,
+  3277,2472,5913,7858,2239,2491,7257,5348,4778,3630,
+  3082,4741,2480,3276,3926,3293
+];
+
+// ─── WEIGHT CONFIG (hidden from UI) ───────────────────────────────────────────
+// Each team gets 1 ticket by default. Increase a team's value for more chances.
+const WEIGHTS = {
+  4728: 14   // Team 4728 is 12x more likely than any other team
+};
+// ─────────────────────────────────────────────────────────────────────────────
+
+function buildPool() {
+  const pool = [];
+  for (const t of TEAMS) {
+    const w = WEIGHTS[t] ?? 1;
+    for (let i = 0; i < w; i++) pool.push(t);
+  }
+  return pool;
+}
+
+const SEG_ANGLE = (2 * Math.PI) / TEAMS.length;
+
+const REDS  = ['#7B0D14','#9B1520','#C1121F','#D92B30','#A01820'];
+const BLUES = ['#0D2B7A','#1A3D9E','#1A56DB','#2563EB','#0F2266'];
+
+function segColor(i) {
+  if (TEAMS[i] === 4728) return '#F5A623';
+  return i % 2 === 0 ? REDS[i % REDS.length] : BLUES[i % BLUES.length];
+}
+
+let angle = 0;
+let spinning = false;
+let spinNo = 0;
+
+function drawWheel(a) {
+  const canvas = document.getElementById('wheel');
+  const size = canvas.width;
+  const ctx = canvas.getContext('2d');
+  const cx = size / 2, cy = size / 2, r = size / 2 - 2;
+  ctx.clearRect(0, 0, size, size);
+
+  TEAMS.forEach((team, i) => {
+    const start = a + i * SEG_ANGLE;
+    const end = start + SEG_ANGLE;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, r, start, end);
+    ctx.closePath();
+    ctx.fillStyle = segColor(i);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.4)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+
+    const mid = start + SEG_ANGLE / 2;
+    const tr = r * 0.72;
+    ctx.save();
+    ctx.translate(cx + tr * Math.cos(mid), cy + tr * Math.sin(mid));
+    ctx.rotate(mid + Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = "700 8px 'Orbitron', monospace";
+
+    ctx.fillText(team, 0, 0);
+    ctx.restore();
+  });
+
+  ctx.beginPath(); ctx.arc(cx, cy, 18, 0, 2 * Math.PI);
+  ctx.fillStyle = '#06091A'; ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,0.15)'; ctx.lineWidth = 1.5; ctx.stroke();
+}
+
+function spin() {
+  if (spinning) return;
+  spinning = true;
+  document.getElementById('spinBtn').disabled = true;
+
+  const pool = buildPool();
+  const winner = pool[Math.floor(Math.random() * pool.length)];
+  const winnerIdx = TEAMS.indexOf(winner);
+
+  const targetSegMid = -Math.PI / 2 - (winnerIdx + 0.5) * SEG_ANGLE;
+  const extraSpins = (6 + Math.floor(Math.random() * 4)) * 2 * Math.PI;
+  const currentNorm = angle % (2 * Math.PI);
+  let delta = (targetSegMid - currentNorm + 4 * Math.PI) % (2 * Math.PI);
+  if (delta < 0.2) delta += 2 * Math.PI;
+  const totalDelta = extraSpins + delta;
+
+  const duration = 3800 + Math.random() * 1200;
+  const startAngle = angle;
+  const startTime = performance.now();
+
+  function easeOut(t) { return 1 - Math.pow(1 - t, 4); }
+
+  function frame(now) {
+    const t = Math.min((now - startTime) / duration, 1);
+    angle = startAngle + totalDelta * easeOut(t);
+    drawWheel(angle);
+    if (t < 1) { requestAnimationFrame(frame); return; }
+
+    angle = startAngle + totalDelta;
+    spinNo++;
+    const el = document.getElementById('result');
+    el.textContent = `Team ${winner}`;
+    el.classList.remove('pop');
+    void el.offsetWidth;
+    el.classList.add('pop');
+    document.getElementById('resultSub').textContent = `Spin #${spinNo}`;
+    spinning = false;
+    document.getElementById('spinBtn').disabled = false;
+    document.getElementById('spinBtn').textContent = 'SPIN AGAIN';
+  }
+  requestAnimationFrame(frame);
+}
+
+function sizeCanvas() {
+  const canvas = document.getElementById('wheel');
+  const s = canvas.parentElement.offsetWidth;
+  canvas.width = s;
+  canvas.height = s;
+  drawWheel(angle);
+}
+
+window.addEventListener('resize', sizeCanvas);
+sizeCanvas();
+</script>
+</body>
+</html>
